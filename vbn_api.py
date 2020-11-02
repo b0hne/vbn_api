@@ -16,9 +16,7 @@ def create_header():
     return header
 
 def request_data(start_time=None, date=None, start=None, end=None):
-
     header = create_header()
-    # print(header)
 
     t = time.localtime()
     if date is None:
@@ -39,8 +37,7 @@ def request_data(start_time=None, date=None, start=None, end=None):
                 'time={0}'
                 '&date={1}'
                 '&fromPlace={2}'
-                '&toPlace={3}'
-                '&mode=BUS,TRAM').format(start_time, date, start, end)
+                '&toPlace={3}').format(start_time, date, start, end)
     c.setopt(c.URL, address)
     c.setopt(c.HTTPHEADER, header)
     c.setopt(c.WRITEDATA, buffer)
@@ -53,8 +50,6 @@ def request_data(start_time=None, date=None, start=None, end=None):
             print(e)
             return [' ']*4
     body = buffer.getvalue().decode('UTF8')
-    # print(address)
-
     
     return prepare_data(body)
 
@@ -65,19 +60,25 @@ def prepare_data(data):
     starts = []
     i = 0
     for stop in stops:
-        # print(i)
+        mode = re.findall("mode\"\:\"(.*?)\"\,", stop)
         route = re.findall("route\"\:\"(.*?)\"\,", stop)
         headsign = re.findall("headsign\"\:\"(.*?)\"\,", stop)
         s_time = re.findall("startTime\"\:(.*?)\,", stop)
         time_left = (time.asctime(time.gmtime(int(s_time[0][0:10])
                      - time.time()))[10:16])
         delay = re.findall("departureDelay\"\:(.*?)\,", stop)
-        
-        if len(route) == 1:
+
+        if len(mode) > 1 and mode[1] == 'RAIL':
+            starts.append([route[1]])
+            starts[i].extend(headsign)
+            starts[i].extend([time_left])
+            starts[i].extend([delay[1]])
+            i += 1
+        elif mode[0] != 'WALK':
             starts.append(route)
             starts[i].extend(headsign)
             starts[i].extend([time_left])
             starts[i].extend(delay)
             i += 1
-    # print(starts)
+
     return(starts)
