@@ -6,6 +6,7 @@ from tkinter import Tk, Frame, ttk, Label, YES, N, E, S, W, Y
 import datetime
 from vbn_api import request_data
 from time import sleep
+from datetime import datetime
 
 COLOR_BACK = "sky blue"
 COLOR_TEXT_T = "pale green"
@@ -46,9 +47,15 @@ def fill():
     # store departures to check for and avoid doubles
     departures = []
     i = 0
-
     for widget in frame.winfo_children():
         widget.destroy()
+
+    print(datetime.now().strftime("%H:%M"))
+    root.title("Python GUI")
+    Label(frame, text=datetime.now().strftime("%H:%M"), font="Helvetica 34 bold", bg=COLOR_BACK).grid(row=i)
+    i += 1
+    Label(frame, text='', font="Helvetica 24 bold", bg=COLOR_BACK).grid(row=i)
+    i += 1
 
     departure_trinidad = get_trinidad_str()
     for start in departure_trinidad:
@@ -83,8 +90,7 @@ root.grid_rowconfigure(0, weight=1)
 root.grid_columnconfigure(0, weight=1)
 
 frame = Frame(root, bg=COLOR_BACK)
-
-frame.grid(row=0, column=0)
+frame.grid(row=0, column=0, sticky="n")
 
 #launch
 fill()
