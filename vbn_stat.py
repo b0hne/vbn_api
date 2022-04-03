@@ -28,8 +28,6 @@ def get_trinidad_str():
     retrieves and prepares departuretimes for Trinidadstr
     '''
     departures = request_data()
-    # if departures == [' ']*4:
-    #     return []
     return departures
 
 def get_bf_sebaldsbrueck():
@@ -37,8 +35,6 @@ def get_bf_sebaldsbrueck():
     retrieves and prepares departuretimes for bf_sebaldsbrueck(bus)
     '''
     departures = request_data(start='1:000009013744', end='1:000009013925')
-    # if departures == [' ']*4:
-    #     return []
     return departures
 
 def fill():
