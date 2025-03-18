@@ -2,16 +2,18 @@ import sys
 import pycurl
 import time
 import re
-from eventlet import Timeout
+import json
 
 try:
     from StringIO import BytesIO
 except ImportError:
     from io import BytesIO
 
+# curl -X GET   'http://gtfsr.vbn.de/api/routers/connect/plan?arriveBy=false&date=02-14-2025&fromPlace=53.059429,8.899465&toPlace=53.051735,8.819698&time=13:00:00&mode=WALK,TRANSIT&maxWalkDistance=300'   -H 'Authorization: --'   -H 'Host: gtfsr.vbn.de'
+
 def create_header():
-    # can be requested via email
-    header = ['Authorization: ...']
+    # can be requested via email from vbn
+    header = ['Authorization: --']
     header.append('Host: gtfsr.vbn.de')
     return header
 
@@ -24,11 +26,11 @@ def request_data(start_time=None, date=None, start=None, end=None):
     if start_time is None:
         start_time = time.strftime("%H:%M:%S", t)
     if start is None:
-        #haltestellenid = Trinidadstr
-        start = '1:000009014238'
+        #haltestellenid = Bahnhof Sebaldsbrück
+        start = '1:000009013744'
     if end is None:
-        #Haltestellenid = Bahnhof Sebaldsbrück
-        end = '1:000009013744'
+        #Haltestellenid = Bremen HBF
+        end = '1:000009013925'
 
     buffer = BytesIO()
     c = pycurl.Curl()
@@ -41,47 +43,22 @@ def request_data(start_time=None, date=None, start=None, end=None):
     c.setopt(c.URL, address)
     c.setopt(c.HTTPHEADER, header)
     c.setopt(c.WRITEDATA, buffer)
-    passed = False
-    with Timeout(4, False):
-        try:
-            c.perform()
-            c.close()
-            passed = True
-        except Exception as e:
-            print('exeption: ')
-            print(e)
-    if passed:
-        body = buffer.getvalue().decode('UTF8')
-        return prepare_data(body)
-    else:
+    c.setopt(c.CONNECTTIMEOUT, 5)
+    c.setopt(c.TIMEOUT, 5)
+
+    try:
+        c.perform()
+        c.close()
+    except Exception as e:
+        print('exeption: ')
+        print(e)
+        print("returned")
         return []
-
-# return list of ['Strassenbahnnummer', 'Endhaltestelle',
-#                 'Zeit bis Abfahrt', 'Verspätung in Sekunden]
-def prepare_data(data):
-    stops = re.findall("\"legs\"\:\[(.*?)\]\,", data)
-    starts = []
-    i = 0
-    for stop in stops:
-        mode = re.findall("mode\"\:\"(.*?)\"\,", stop)
-        route = re.findall("route\"\:\"(.*?)\"\,", stop)
-        headsign = re.findall("headsign\"\:\"(.*?)\"\,", stop)
-        s_time = re.findall("startTime\"\:(.*?)\,", stop)
-        time_left = (time.asctime(time.gmtime(int(s_time[0][0:10])
-                     - time.time()))[10:16])
-        delay = re.findall("departureDelay\"\:(.*?)\,", stop)
-
-        if len(mode) > 1 and mode[1] == 'RAIL':
-            starts.append([route[1]])
-            starts[i].extend(headsign)
-            starts[i].extend([time_left])
-            starts[i].extend([delay[1]])
-            i += 1
-        elif mode[0] != 'WALK':
-            starts.append(route)
-            starts[i].extend(headsign)
-            starts[i].extend([time_left])
-            starts[i].extend(delay)
-            i += 1
-
-    return(starts)
+    data = json.loads(buffer.getvalue())
+    legs = []
+    if(len(data) != 0):
+        for trip in list(data.get('plan').get('itineraries')):
+            leg = trip.get("legs")[0]
+            legs.append(leg)
+        return legs
+    return []

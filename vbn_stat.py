@@ -5,7 +5,7 @@ displays the departures at Bremen Sebaldsbrueck
 from tkinter import Tk, Frame, ttk, Label, YES, N, E, S, W, Y
 import datetime
 from vbn_api import request_data
-from time import sleep
+import time
 from datetime import datetime
 
 COLOR_BACK = "sky blue"
@@ -15,81 +15,91 @@ COLOR_TEXT_B = "darkolovegreen"
 COLOR_TIME_B = "red"
 
 # store stations for comparrission
-departure_trinidad = []
 departure_sebaldsbrueck = []
 frame = None
 
-
 # "1:000009013744", "Bremen Bahnhof Sebaldsbrück (Nord)"
 # "1:000009013925", "Bremen Hauptbahnhof"
-# "1:000009014238", "Bremen Trinidadstraße"
-def get_trinidad_str():
-    '''
-    retrieves and prepares departuretimes for Trinidadstr
-    '''
-    departures = request_data()
-    return departures
-
 def get_bf_sebaldsbrueck():
     '''
     retrieves and prepares departuretimes for bf_sebaldsbrueck(bus)
     '''
-    departures = request_data(start='1:000009013744', end='1:000009013925')
-    return departures
-
+    return request_data(start='1:000009013744', end='1:000009013925')
+    
 def fill():
     '''
     creates and regularly updates interface
     '''
-    global departure_trinidad, departure_sebaldsbrueck, frame
+    global departure_sebaldsbrueck, frame
+
+    try:
+        departure_sebaldsbrueck = get_bf_sebaldsbrueck()
+    except:
+        departure_sebaldsbrueck = []
 
     # store departures to check for and avoid doubles
+    NR_DEPARTURES = 12
     departures = []
+    departures_old = [""]*NR_DEPARTURES
     i = 0
-    for widget in frame.winfo_children():
-        widget.destroy()
-
+    
+    frame=Frame(root, bg=COLOR_BACK, width=320, height=480)
     print(datetime.now().strftime("%H:%M"))
-    root.title("Python GUI")
-    Label(frame, text=datetime.now().strftime("%H:%M"), font="Helvetica 34 bold", bg=COLOR_BACK).grid(row=i)
-    i += 1
-    Label(frame, text='', font="Helvetica 24 bold", bg=COLOR_BACK).grid(row=i)
+    root.title("vbn GUI")
+    Label(text=datetime.now().strftime("%H:%M"), font="Helvetica 34 bold", bg=COLOR_BACK).place(x=100, y=10)
     i += 1
 
-    departure_trinidad = get_trinidad_str()
-    departure_sebaldsbrueck = get_bf_sebaldsbrueck()
 
-    if len(departure_sebaldsbrueck) == 0 or len(departure_trinidad) == 0:
-        label_text = "keine Daten"
-        Label(frame, text=label_text, font="Helvetica 24 bold", bg=COLOR_BACK).grid(row=i)
-        return
+    if len(departure_sebaldsbrueck) == 0:
+        Label(text="                                        ", font="Helvetica 34 bold", bg=COLOR_BACK).place(x=00, y=50)
+        Label(text="keine Daten", font="Helvetica 30 bold", bg=COLOR_BACK).place(x=30, y=50)
+        for i in range(10):
+            Label(text="                                        ", font="Helvetica 21 bold", bg=COLOR_BACK).place(x=00, y=80 + (i)*40)
+
+
     else:
-        for start in departure_trinidad:
-            departures.append(start[0])
-            label_text = start[0] + " -> " + start[1]
-            label_length = len(label_text)
-            if label_length > 18:
-                label_text = label_text[:18]
-            print("i: ", i)
-            Label(frame, text=label_text, font="Helvetica 24 bold", bg=COLOR_BACK).grid(row=i)
-            i += 1
-            Label(frame, text=start[2], fg=COLOR_TIME_T, font="Courier 20 bold", bg=COLOR_BACK).grid(row=i)
-            i += 1
+        entries = []
 
-        for start in departure_sebaldsbrueck:
-            if not start[0] in departures:
-                label_text = start[0] + " -> " + start[1]
-                label_length = len(label_text)
-                if label_length > 18:
-                    label_text = label_text[:18]
-                Label(frame, text=label_text, font=("Helvetica 24 bold"), bg=COLOR_BACK).grid(row=i)
-                i += 1
-                Label(frame, text=start[2], font="Courier 20 bold",bg=COLOR_BACK, fg=COLOR_TIME_B).grid(row=i)
-                i += 1
+        if len(departure_sebaldsbrueck) != 0:
+            for leg in departure_sebaldsbrueck:
+                print(leg)
+                # avoid transfer
+                if leg.get("steps") == []:
+                    if "routeShortName" in leg and "headsign" in leg and "startTime" in leg:
+                        entries.append((leg.get("routeShortName"), leg.get("headsign"), int((leg.get("startTime")/1000 - time.time())/60)))
+
+        sorted_entries = []
+        if(len(entries) != 0):
+            sorted_entries = sorted(entries, key=lambda x: x[2])
+            for i, entry in enumerate(sorted_entries):
+                if (i < NR_DEPARTURES):
+                    zielbahnhof = entry[1]
+                    if len(zielbahnhof) > 12:
+                        zielbahnhof = zielbahnhof[:12]
+                    if len(zielbahnhof) <12:
+                        for _ in range(12-len(zielbahnhof)):
+                            zielbahnhof += " "
+                    departure = str(entry[2])
+                    if len(departure) <4:
+                        if len(departure) <3:
+                            if len(departure) <2:
+                                departure = " "+(departure)
+                            departure = " "+(departure)
+                        departure = " "+(departure)
+                    text_ = ""
+                    text_ += entry[0] + "->" + zielbahnhof + ":" + departure
+                    if departures_old[i] != text_:
+                        departures_old[i] = text_
+                        Label(text="                                        ", font="Helvetica 21 bold", bg=COLOR_BACK).place(x=00, y=60 + (i)*40)
+                        Label(text=text_, font="Helvetica 21 bold", bg=COLOR_BACK).place(x=00, y=60 + (i)*40)
+            for i in range(len(sorted_entries), NR_DEPARTURES, 1):
+                Label(text="                                        ", font="Helvetica 21 bold", bg=COLOR_BACK).place(x=00, y=60 + (i)*40)
 
 
-    # refresh every 15 Seconds
-    frame.after(15000, fill)
+
+
+    # refresh every 5 Seconds
+    frame.after(5000, fill)
 
 # root window
 root = Tk()
@@ -100,14 +110,8 @@ root.geometry("320x480")
 #hide mouse
 root.config(cursor="none", bg=COLOR_BACK)
 root.title("departures")
-root.grid_rowconfigure(0, weight=1)
-root.grid_columnconfigure(0, weight=1)
-
-frame = Frame(root, bg=COLOR_BACK)
-frame.grid(row=0, column=0, sticky="n")
+frame=Frame(root, bg=COLOR_BACK, width=320, height=480)
 
 #launch
 fill()
 root.mainloop()
-
-
