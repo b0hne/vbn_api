@@ -1,117 +1,110 @@
 #!/usr/bin/python3
 '''
-displays the departures at Bremen Sebaldsbrueck
+Displays the departures at Bremen Weserwehr and Föhrenstraße with subdivided labels for route, destination, and minutes
 '''
-from tkinter import Tk, Frame, ttk, Label, YES, N, E, S, W, Y
-import datetime
-from vbn_api import request_data
 import time
+from tkinter import Tk, Label
 from datetime import datetime
+from vbn_api import request_data
 
-COLOR_BACK = "sky blue"
-COLOR_TEXT_T = "pale green"
-COLOR_TIME_T = "darkgreen"
-COLOR_TEXT_B = "darkolovegreen"
-COLOR_TIME_B = "red"
+# GUI Configuration
+COLOR_BACK = "sky blue"  # Background color
+COLOR_WESERWEHR = "black"  # Default text color
+COLOR_FÖHRENSTR = "red"      # Alert text color
+NR_DEPARTURES = 12       # Number of departure entries displayed
+UPDATE_INTERVAL = 5000   # Update interval in milliseconds (5 seconds)
 
-# store stations for comparrission
-departure_sebaldsbrueck = []
-frame = None
+# Station pairs and their display colors
+STATION_PAIRS = [
+    ('1:000009014285', '1:000009013963', COLOR_WESERWEHR),  # Weserwehr - Hohwisch
+    ('1:000009014285', '1:000009013884', COLOR_WESERWEHR),  # Weserwehr - Föhrenstraße
+    ('1:000009014285', '1:000009013994', COLOR_WESERWEHR),  # Weserwehr - Karl-Carstens-Brücke
+    ('1:000009013884', '1:000009014054', COLOR_FÖHRENSTR),    # Föhrenstraße - Malerstraße
+    ('1:000009013884', '1:000009014285', COLOR_FÖHRENSTR),    # Föhrenstraße - Weserwehr
+    ('1:000009013884', '1:000009014184', COLOR_FÖHRENSTR),    # Föhrenstraße - Sebaldsbrück
+]
 
-# "1:000009013744", "Bremen Bahnhof Sebaldsbrück (Nord)"
-# "1:000009013925", "Bremen Hauptbahnhof"
-def get_bf_sebaldsbrueck():
-    '''
-    retrieves and prepares departuretimes for bf_sebaldsbrueck(bus)
-    '''
-    return request_data(start='1:000009013744', end='1:000009013925')
-    
-def fill():
-    '''
-    creates and regularly updates interface
-    '''
-    global departure_sebaldsbrueck, frame
-
-    try:
-        departure_sebaldsbrueck = get_bf_sebaldsbrueck()
-    except:
-        departure_sebaldsbrueck = []
-
-    # store departures to check for and avoid doubles
-    NR_DEPARTURES = 12
-    departures = []
-    departures_old = [""]*NR_DEPARTURES
-    i = 0
-    
-    frame=Frame(root, bg=COLOR_BACK, width=320, height=480)
-    print(datetime.now().strftime("%H:%M"))
-    root.title("vbn GUI")
-    Label(text=datetime.now().strftime("%H:%M"), font="Helvetica 34 bold", bg=COLOR_BACK).place(x=100, y=10)
-    i += 1
-
-
-    if len(departure_sebaldsbrueck) == 0:
-        Label(text="                                        ", font="Helvetica 34 bold", bg=COLOR_BACK).place(x=00, y=50)
-        Label(text="keine Daten", font="Helvetica 30 bold", bg=COLOR_BACK).place(x=30, y=50)
-        for i in range(10):
-            Label(text="                                        ", font="Helvetica 21 bold", bg=COLOR_BACK).place(x=00, y=80 + (i)*40)
-
-
-    else:
-        entries = []
-
-        if len(departure_sebaldsbrueck) != 0:
-            for leg in departure_sebaldsbrueck:
-                print(leg)
-                # avoid transfer
-                if leg.get("steps") == []:
-                    if "routeShortName" in leg and "headsign" in leg and "startTime" in leg:
-                        entries.append((leg.get("routeShortName"), leg.get("headsign"), int((leg.get("startTime")/1000 - time.time())/60)))
-
-        sorted_entries = []
-        if(len(entries) != 0):
-            sorted_entries = sorted(entries, key=lambda x: x[2])
-            for i, entry in enumerate(sorted_entries):
-                if (i < NR_DEPARTURES):
-                    zielbahnhof = entry[1]
-                    if len(zielbahnhof) > 12:
-                        zielbahnhof = zielbahnhof[:12]
-                    if len(zielbahnhof) <12:
-                        for _ in range(12-len(zielbahnhof)):
-                            zielbahnhof += " "
-                    departure = str(entry[2])
-                    if len(departure) <4:
-                        if len(departure) <3:
-                            if len(departure) <2:
-                                departure = " "+(departure)
-                            departure = " "+(departure)
-                        departure = " "+(departure)
-                    text_ = ""
-                    text_ += entry[0] + "->" + zielbahnhof + ":" + departure
-                    if departures_old[i] != text_:
-                        departures_old[i] = text_
-                        Label(text="                                        ", font="Helvetica 21 bold", bg=COLOR_BACK).place(x=00, y=60 + (i)*40)
-                        Label(text=text_, font="Helvetica 21 bold", bg=COLOR_BACK).place(x=00, y=60 + (i)*40)
-            for i in range(len(sorted_entries), NR_DEPARTURES, 1):
-                Label(text="                                        ", font="Helvetica 21 bold", bg=COLOR_BACK).place(x=00, y=60 + (i)*40)
-
-
-
-
-    # refresh every 5 Seconds
-    frame.after(5000, fill)
-
-# root window
+# Setup GUI window
 root = Tk()
-
-# switch out for rearranging on other resolution displays
-root.attributes('-fullscreen', True)
 root.geometry("320x480")
-#hide mouse
 root.config(cursor="none", bg=COLOR_BACK)
-root.title("departures")
-frame=Frame(root, bg=COLOR_BACK, width=320, height=480)
+root.title("vbn GUI")
 
-#launch
-fill()
+# Initialize labels subdivided into route, destination, and minutes
+route_labels = [Label(root, text="", font="Helvetica 18 bold", bg=COLOR_BACK, width=5, anchor='w') for _ in range(NR_DEPARTURES)]
+dest_labels = [Label(root, text="", font="Helvetica 18 bold", bg=COLOR_BACK, width=14, anchor='w') for _ in range(NR_DEPARTURES)]
+time_labels = [Label(root, text="", font="Helvetica 18 bold", bg=COLOR_BACK, width=5, anchor='e') for _ in range(NR_DEPARTURES)]
+
+for i in range(NR_DEPARTURES):
+    route_labels[i].place(x=5, y=60 + i * 35)
+    dest_labels[i].place(x=65, y=60 + i * 35)
+    time_labels[i].place(x=250, y=60 + i * 35)
+
+# Label to display the current time
+time_label = Label(root, text="", font="Helvetica 34 bold", bg=COLOR_BACK)
+time_label.place(x=100, y=10)
+
+# Retrieve departure data for given stations
+def get_departures(start, end):
+    try:
+        return request_data(start=start, end=end)
+    except Exception as e:
+        print(f"Error fetching departures ({start}->{end}): {e}")
+        return []
+
+# Prepare entries by filtering and formatting data
+def prepare_entries(entries, color):
+    prepared = []
+    current_time = time.time()
+    for leg in entries:
+        if leg.get("steps") == []:
+            route = leg.get("routeShortName")
+            headsign = leg.get("headsign")
+            start_time = leg.get("startTime")
+            if route and headsign and start_time:
+                minutes = int((start_time / 1000 - current_time) / 60)
+                prepared.append((route, headsign, minutes, color))
+    return prepared
+
+# Update the GUI with latest departure information
+def update_display():
+    entries_w, entries_f = [], []
+
+    for start, end, color in STATION_PAIRS[:3]:
+        entries_w += prepare_entries(get_departures(start, end), color)
+
+    for start, end, color in STATION_PAIRS[3:]:
+        entries_f += prepare_entries(get_departures(start, end), color)
+
+    sorted_entries_w = sorted(entries_w, key=lambda x: x[2])
+    sorted_entries_f = sorted(entries_f, key=lambda x: x[2])
+
+    w, f = len(sorted_entries_w), len(sorted_entries_f)
+    if w < NR_DEPARTURES // 2 or f < NR_DEPARTURES // 2:
+        if w < f:
+            f = min(f, NR_DEPARTURES - w)
+        elif w > f:
+            w = min(w, NR_DEPARTURES - f)
+    else:
+        f = w = NR_DEPARTURES // 2
+
+    combined_entries = sorted_entries_w[:w] + sorted_entries_f[:f]
+
+    for i, entry in enumerate(combined_entries):
+        route_labels[i].config(text=entry[0], fg=entry[3])
+        dest_labels[i].config(text=entry[1][:12], fg=entry[3])
+        time_labels[i].config(text=f"{entry[2]}", fg=entry[3])
+
+    for i in range(len(combined_entries), NR_DEPARTURES):
+        route_labels[i].config(text="")
+        dest_labels[i].config(text="")
+        time_labels[i].config(text="")
+
+    time_label.config(text=datetime.now().strftime("%H:%M"))
+
+    root.after(UPDATE_INTERVAL, update_display)
+    print("update")
+
+# Start updating loop
+update_display()
 root.mainloop()
