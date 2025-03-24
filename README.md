@@ -59,9 +59,6 @@ pycurl>=7.45.2
 - Required Python libraries (listed in `requirements.txt`):
   - pycurl
 - GUI requires `tkinter`, which is bundled with Python on Windows/macOS but might need to be installed on Linux.
-Thanks! Here's your updated **README** content with the `curl` example integrated:
-
----
 
 ### Example: Retrieving Station Information
 
@@ -91,8 +88,6 @@ In the returned JSON, look under the `plan → from` or `to` fields, or inside e
 ```
 
 You can then use the extracted `stopId` in your own requests via the `vbn_api.py` script.
-
----
 
 ### Installation
 
