@@ -1,50 +1,30 @@
 #!/usr/bin/python3
-'''
-Displays the departures at Bremen Weserwehr and Föhrenstraße with subdivided labels for route, destination, and minutes
-'''
+
+import subprocess
 import time
-from tkinter import Tk, Label
 from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont
 from vbn_api import request_data
 
-# GUI Configuration
-COLOR_BACK = "sky blue"  # Background color
-COLOR_WESERWEHR = "black"  # Default text color
-COLOR_FÖHRENSTR = "red"      # Alert text color
-NR_DEPARTURES = 12       # Number of departure entries displayed
-UPDATE_INTERVAL = 5000   # Update interval in milliseconds (5 seconds)
+# Configuration
+WIDTH, HEIGHT = 320, 480
+COLOR_BACK = "skyblue"
+COLOR_WESERWEHR = "black"
+COLOR_FOEHRENSTR = "red"
+NR_DEPARTURES = 12
+UPDATE_INTERVAL = 15  # seconds
+FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+IMAGE_PATH = '/tmp/timetable.png'
 
-# Station pairs and their display colors
 STATION_PAIRS = [
-    ('1:000009014285', '1:000009013963', COLOR_WESERWEHR),  # Weserwehr - Hohwisch
-    ('1:000009014285', '1:000009013884', COLOR_WESERWEHR),  # Weserwehr - Föhrenstraße
-    ('1:000009014285', '1:000009013994', COLOR_WESERWEHR),  # Weserwehr - Karl-Carstens-Brücke
-    ('1:000009013884', '1:000009014054', COLOR_FÖHRENSTR),    # Föhrenstraße - Malerstraße
-    ('1:000009013884', '1:000009014285', COLOR_FÖHRENSTR),    # Föhrenstraße - Weserwehr
-    ('1:000009013884', '1:000009014184', COLOR_FÖHRENSTR),    # Föhrenstraße - Sebaldsbrück
+    ('1:000009014285', '1:000009013963', COLOR_WESERWEHR),
+    ('1:000009014285', '1:000009013884', COLOR_WESERWEHR),
+    ('1:000009014285', '1:000009013994', COLOR_WESERWEHR),
+    ('1:000009013884', '1:000009014054', COLOR_FOEHRENSTR),
+    ('1:000009013884', '1:000009014285', COLOR_FOEHRENSTR),
+    ('1:000009013884', '1:000009014184', COLOR_FOEHRENSTR),
 ]
 
-# Setup GUI window
-root = Tk()
-root.geometry("320x480")
-root.config(cursor="none", bg=COLOR_BACK)
-root.title("vbn GUI")
-
-# Initialize labels subdivided into route, destination, and minutes
-route_labels = [Label(root, text="", font="Helvetica 18 bold", bg=COLOR_BACK, width=5, anchor='w') for _ in range(NR_DEPARTURES)]
-dest_labels = [Label(root, text="", font="Helvetica 18 bold", bg=COLOR_BACK, width=14, anchor='w') for _ in range(NR_DEPARTURES)]
-time_labels = [Label(root, text="", font="Helvetica 18 bold", bg=COLOR_BACK, width=5, anchor='e') for _ in range(NR_DEPARTURES)]
-
-for i in range(NR_DEPARTURES):
-    route_labels[i].place(x=5, y=60 + i * 35)
-    dest_labels[i].place(x=65, y=60 + i * 35)
-    time_labels[i].place(x=250, y=60 + i * 35)
-
-# Label to display the current time
-time_label = Label(root, text="", font="Helvetica 34 bold", bg=COLOR_BACK)
-time_label.place(x=100, y=10)
-
-# Retrieve departure data for given stations
 def get_departures(start, end):
     try:
         return request_data(start=start, end=end)
@@ -52,7 +32,6 @@ def get_departures(start, end):
         print(f"Error fetching departures ({start}->{end}): {e}")
         return []
 
-# Prepare entries by filtering and formatting data
 def prepare_entries(entries, color):
     prepared = []
     current_time = time.time()
@@ -66,8 +45,16 @@ def prepare_entries(entries, color):
                 prepared.append((route, headsign, minutes, color))
     return prepared
 
-# Update the GUI with latest departure information
-def update_display():
+# Generate timetable image
+def create_timetable_image():
+    img = Image.new('RGB', (WIDTH, HEIGHT), COLOR_BACK)
+    draw = ImageDraw.Draw(img)
+    font_large = ImageFont.truetype(FONT_PATH, 34)
+    font_normal = ImageFont.truetype(FONT_PATH, 18)
+
+    current_time_str = datetime.now().strftime("%H:%M")
+    draw.text((100, 10), current_time_str, font=font_large, fill="black")
+
     entries_w, entries_f = [], []
 
     for start, end, color in STATION_PAIRS[:3]:
@@ -85,26 +72,34 @@ def update_display():
             f = min(f, NR_DEPARTURES - w)
         elif w > f:
             w = min(w, NR_DEPARTURES - f)
+        # else:
+            # both are less, all is well
     else:
         f = w = NR_DEPARTURES // 2
 
     combined_entries = sorted_entries_w[:w] + sorted_entries_f[:f]
 
-    for i, entry in enumerate(combined_entries):
-        route_labels[i].config(text=entry[0], fg=entry[3])
-        dest_labels[i].config(text=entry[1][:12], fg=entry[3])
-        time_labels[i].config(text=f"{entry[2]}", fg=entry[3])
+    y_offset = 60
+    for entry in combined_entries:
+        route, dest, minutes, color = entry
+        draw.text((5, y_offset), route, font=font_normal, fill=color)
+        draw.text((65, y_offset), dest[:12], font=font_normal, fill=color)
+        draw.text((250, y_offset), f"{minutes}m", font=font_normal, fill=color)
+        y_offset += 35
 
-    for i in range(len(combined_entries), NR_DEPARTURES):
-        route_labels[i].config(text="")
-        dest_labels[i].config(text="")
-        time_labels[i].config(text="")
+    img = img.rotate(90, expand=True)
+    img.save(IMAGE_PATH)
 
-    time_label.config(text=datetime.now().strftime("%H:%M"))
+# Display image to framebuffer
+def display_image():
+    subprocess.run(['sudo', 'pkill', '-9', 'fbi'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    root.after(UPDATE_INTERVAL, update_display)
-    print("update")
+    subprocess.run(['sudo', 'fbi', '-noverbose', '-T', '1', '-a', IMAGE_PATH])
 
-# Start updating loop
-update_display()
-root.mainloop()
+# Main daemon loop
+if __name__ == "__main__":
+    while True:
+        create_timetable_image()
+        display_image()
+        print(f"Updated and displayed at {datetime.now().strftime('%H:%M:%S')}")
+        time.sleep(UPDATE_INTERVAL)
